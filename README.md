@@ -48,4 +48,5 @@ A simple online exam system built with **Plain PHP + MySQL**.
 
 ## Author
 
-Your Name
+Ashikur Rahman Peters
+
