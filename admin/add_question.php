@@ -27,45 +27,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $option_c = null;
     $option_d = null;
     $correct_answer = '';
+    $image_name = null;
 
-    if ($question_type === 'mcq') {
-        $option_a = trim($_POST['option_a'] ?? '');
-        $option_b = trim($_POST['option_b'] ?? '');
-        $option_c = trim($_POST['option_c'] ?? '');
-        $option_d = trim($_POST['option_d'] ?? '');
-        $correct_answer = strtoupper(trim($_POST['correct_answer_mcq'] ?? ''));
+    // -------------------------
+    // Optional Image Upload
+    // -------------------------
+    if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
+        $upload_dir = "../uploads/questions/";
 
-        if ($option_a === '' || $option_b === '' || $option_c === '' || $option_d === '' || !in_array($correct_answer, ['A', 'B', 'C', 'D'])) {
-            $message = "Please fill all MCQ options and choose a valid correct answer (A/B/C/D).";
-        } else {
-            $option_a = $conn->real_escape_string($option_a);
-            $option_b = $conn->real_escape_string($option_b);
-            $option_c = $conn->real_escape_string($option_c);
-            $option_d = $conn->real_escape_string($option_d);
-            $correct_answer = $conn->real_escape_string($correct_answer);
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
         }
-    } elseif ($question_type === 'true_false') {
-        $correct_answer = trim($_POST['correct_answer_tf'] ?? '');
 
-        if (!in_array($correct_answer, ['True', 'False'])) {
-            $message = "Please select True or False as the correct answer.";
+        $file_name = $_FILES['image']['name'];
+        $file_tmp = $_FILES['image']['tmp_name'];
+        $file_size = $_FILES['image']['size'];
+        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+        $allowed_ext = ['jpg', 'jpeg', 'png', 'webp'];
+
+        if (!in_array($file_ext, $allowed_ext)) {
+            $message = "Only JPG, JPEG, PNG, and WEBP images are allowed.";
         } else {
-            $correct_answer = $conn->real_escape_string($correct_answer);
+            $new_file_name = time() . '_' . uniqid() . '.' . $file_ext;
+            $destination = $upload_dir . $new_file_name;
+
+            if (move_uploaded_file($file_tmp, $destination)) {
+                $image_name = $conn->real_escape_string($new_file_name);
+            } else {
+                $message = "Failed to upload question image.";
+            }
         }
-    } else {
-        $message = "Invalid question type.";
     }
 
+    // -------------------------
+    // Question Validation
+    // -------------------------
+    if ($message === "") {
+        if ($question_type === 'mcq') {
+            $option_a = trim($_POST['option_a'] ?? '');
+            $option_b = trim($_POST['option_b'] ?? '');
+            $option_c = trim($_POST['option_c'] ?? '');
+            $option_d = trim($_POST['option_d'] ?? '');
+            $correct_answer = strtoupper(trim($_POST['correct_answer_mcq'] ?? ''));
+
+            if (
+                $option_a === '' || $option_b === '' || $option_c === '' || $option_d === '' ||
+                !in_array($correct_answer, ['A', 'B', 'C', 'D'])
+            ) {
+                $message = "Please fill all MCQ options and choose a valid correct answer (A/B/C/D).";
+            } else {
+                $option_a = $conn->real_escape_string($option_a);
+                $option_b = $conn->real_escape_string($option_b);
+                $option_c = $conn->real_escape_string($option_c);
+                $option_d = $conn->real_escape_string($option_d);
+                $correct_answer = $conn->real_escape_string($correct_answer);
+            }
+        } elseif ($question_type === 'true_false') {
+            $correct_answer = trim($_POST['correct_answer_tf'] ?? '');
+
+            if (!in_array($correct_answer, ['True', 'False'])) {
+                $message = "Please select True or False as the correct answer.";
+            } else {
+                $correct_answer = $conn->real_escape_string($correct_answer);
+            }
+        } else {
+            $message = "Invalid question type.";
+        }
+    }
+
+    // -------------------------
+    // Insert Question
+    // -------------------------
     if ($message === "") {
         $sql = "INSERT INTO questions 
-                (exam_id, question_text, question_type, option_a, option_b, option_c, option_d, correct_answer, marks)
+                (exam_id, question_text, image, question_type, option_a, option_b, option_c, option_d, correct_answer, marks)
                 VALUES 
-                ($exam_id, '$question_text', '$question_type', " .
-                ($option_a !== null ? "'$option_a'" : "NULL") . ", " .
-                ($option_b !== null ? "'$option_b'" : "NULL") . ", " .
-                ($option_c !== null ? "'$option_c'" : "NULL") . ", " .
-                ($option_d !== null ? "'$option_d'" : "NULL") . ", " .
-                "'$correct_answer', $marks)";
+                ($exam_id, '$question_text', " . ($image_name ? "'$image_name'" : "NULL") . ", '$question_type', " .
+            ($option_a !== null ? "'$option_a'" : "NULL") . ", " .
+            ($option_b !== null ? "'$option_b'" : "NULL") . ", " .
+            ($option_c !== null ? "'$option_c'" : "NULL") . ", " .
+            ($option_d !== null ? "'$option_d'" : "NULL") . ", " .
+            "'$correct_answer', $marks)";
 
         if ($conn->query($sql)) {
             $conn->query("UPDATE exams SET total_marks = total_marks + $marks WHERE id = $exam_id");
@@ -91,13 +134,19 @@ include '../includes/admin_header.php';
     </div>
 
     <?php if ($message): ?>
-        <div class="alert alert-info"><?= $message ?></div>
+        <div class="alert alert-info"><?= htmlspecialchars($message) ?></div>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <div class="mb-3">
             <label class="form-label">Question</label>
             <textarea name="question_text" class="form-control" rows="3" required></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Question Image <small class="text-muted">(Optional)</small></label>
+            <input type="file" name="image" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/*">
+            <small class="text-muted">Allowed: JPG, JPEG, PNG, WEBP</small>
         </div>
 
         <div class="mb-3">
@@ -174,6 +223,7 @@ include '../includes/admin_header.php';
                 <tr>
                     <th>ID</th>
                     <th>Question</th>
+                    <th>Image</th>
                     <th>Type</th>
                     <th>Correct Answer</th>
                     <th>Marks</th>
@@ -185,6 +235,14 @@ include '../includes/admin_header.php';
                         <tr>
                             <td><?= $q['id'] ?></td>
                             <td><?= htmlspecialchars($q['question_text']) ?></td>
+                            <td>
+                                <?php if (!empty($q['image'])): ?>
+                                    <img src="../uploads/questions/<?= htmlspecialchars($q['image']) ?>" alt="Question Image"
+                                        width="70" style="border-radius:8px;">
+                                <?php else: ?>
+                                    <span class="text-muted">No Image</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php if ($q['question_type'] === 'mcq'): ?>
                                     <span class="badge bg-primary">MCQ</span>
@@ -198,7 +256,7 @@ include '../includes/admin_header.php';
                     <?php endwhile; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5" class="text-center">No questions added yet.</td>
+                        <td colspan="6" class="text-center">No questions added yet.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -207,45 +265,45 @@ include '../includes/admin_header.php';
 </div>
 
 <script>
-function toggleFields() {
-    const type = document.getElementById('question_type').value;
+    function toggleFields() {
+        const type = document.getElementById('question_type').value;
 
-    const mcqFields = document.getElementById('mcq_fields');
-    const tfFields = document.getElementById('tf_fields');
+        const mcqFields = document.getElementById('mcq_fields');
+        const tfFields = document.getElementById('tf_fields');
 
-    const optionA = document.getElementById('option_a');
-    const optionB = document.getElementById('option_b');
-    const optionC = document.getElementById('option_c');
-    const optionD = document.getElementById('option_d');
-    const correctMcq = document.getElementById('correct_answer_mcq');
-    const correctTf = document.getElementById('correct_answer_tf');
+        const optionA = document.getElementById('option_a');
+        const optionB = document.getElementById('option_b');
+        const optionC = document.getElementById('option_c');
+        const optionD = document.getElementById('option_d');
+        const correctMcq = document.getElementById('correct_answer_mcq');
+        const correctTf = document.getElementById('correct_answer_tf');
 
-    if (type === 'mcq') {
-        mcqFields.style.display = 'block';
-        tfFields.style.display = 'none';
+        if (type === 'mcq') {
+            mcqFields.style.display = 'block';
+            tfFields.style.display = 'none';
 
-        optionA.required = true;
-        optionB.required = true;
-        optionC.required = true;
-        optionD.required = true;
-        correctMcq.required = true;
+            optionA.required = true;
+            optionB.required = true;
+            optionC.required = true;
+            optionD.required = true;
+            correctMcq.required = true;
 
-        correctTf.required = false;
-    } else {
-        mcqFields.style.display = 'none';
-        tfFields.style.display = 'block';
+            correctTf.required = false;
+        } else {
+            mcqFields.style.display = 'none';
+            tfFields.style.display = 'block';
 
-        optionA.required = false;
-        optionB.required = false;
-        optionC.required = false;
-        optionD.required = false;
-        correctMcq.required = false;
+            optionA.required = false;
+            optionB.required = false;
+            optionC.required = false;
+            optionD.required = false;
+            correctMcq.required = false;
 
-        correctTf.required = true;
+            correctTf.required = true;
+        }
     }
-}
 
-document.addEventListener('DOMContentLoaded', toggleFields);
+    document.addEventListener('DOMContentLoaded', toggleFields);
 </script>
 
 <?php include '../includes/admin_footer.php'; ?>

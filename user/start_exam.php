@@ -142,6 +142,12 @@ include '../includes/user_header.php';
         color: #1d4ed8;
         font-weight: 700;
         font-size: 15px;
+        flex-shrink: 0;
+    }
+
+    .question-content {
+        flex: 1;
+        min-width: 0;
     }
 
     .question-title {
@@ -149,13 +155,29 @@ include '../includes/user_header.php';
         font-weight: 700;
         color: #111827;
         line-height: 1.5;
-        flex: 1;
     }
 
     .question-tags {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
+    }
+
+    .question-image-wrap {
+        margin-top: 14px;
+    }
+
+    .question-image {
+        max-width: 100%;
+        width: auto;
+        max-height: 280px;
+        border-radius: 14px;
+        border: 1px solid #e5e7eb;
+        padding: 4px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+        object-fit: contain;
+        display: block;
     }
 
     .option-grid {
@@ -191,7 +213,7 @@ include '../includes/user_header.php';
         background: #eff6ff;
     }
 
-    .option-item input[type="radio"]:checked+.option-label {
+    .option-item input[type="radio"]:checked + .option-label {
         border-color: #2563eb;
         background: #eff6ff;
         box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
@@ -210,7 +232,7 @@ include '../includes/user_header.php';
         color: #111827;
     }
 
-    .option-item input[type="radio"]:checked+.option-label .option-code {
+    .option-item input[type="radio"]:checked + .option-label .option-code {
         background: #2563eb;
         color: #fff;
     }
@@ -274,17 +296,9 @@ include '../includes/user_header.php';
     }
 
     @keyframes pulseTimer {
-        0% {
-            transform: scale(1);
-        }
-
-        50% {
-            transform: scale(1.03);
-        }
-
-        100% {
-            transform: scale(1);
-        }
+        0% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+        100% { transform: scale(1); }
     }
 
     .info-list {
@@ -296,6 +310,7 @@ include '../includes/user_header.php';
     .info-list li {
         display: flex;
         justify-content: space-between;
+        gap: 12px;
         padding: 10px 0;
         border-bottom: 1px solid #eef2f7;
         font-size: 14px;
@@ -327,13 +342,34 @@ include '../includes/user_header.php';
             grid-template-columns: 1fr;
         }
     }
+
+    @media (max-width: 576px) {
+        .exam-hero {
+            padding: 20px;
+        }
+
+        .exam-hero h2 {
+            font-size: 24px;
+        }
+
+        .question-card {
+            padding: 18px;
+        }
+
+        .question-top {
+            flex-direction: column;
+        }
+
+        .question-image {
+            max-height: 220px;
+        }
+    }
 </style>
 
 <div class="exam-hero">
     <h2><?= htmlspecialchars($exam['title']) ?></h2>
     <p><?= htmlspecialchars($exam['description']) ?></p>
 
-    
     <div class="exam-meta-wrap">
         <div class="exam-meta-box">
             <small>Duration</small>
@@ -350,23 +386,31 @@ include '../includes/user_header.php';
             <strong>Random</strong>
         </div>
     </div>
-    
-
 </div>
 
 <form method="POST" id="examForm">
     <div class="exam-layout">
         <div>
-            <?php $serial = 1;
-            while ($q = $questions->fetch_assoc()): ?>
+            <?php $serial = 1; ?>
+            <?php while ($q = $questions->fetch_assoc()): ?>
                 <div class="question-card">
                     <div class="question-top">
                         <div class="d-flex align-items-start gap-3 flex-grow-1">
                             <div class="question-number"><?= $serial ?></div>
 
-                            
-                            <div class="question-title">
-                                <?= htmlspecialchars($q['question_text']) ?>
+                            <div class="question-content">
+                                <div class="question-title">
+                                    <?= htmlspecialchars($q['question_text']) ?>
+                                </div>
+
+                                <?php if (!empty($q['image'])): ?>
+                                    <div class="question-image-wrap">
+                                        <img 
+                                            src="../uploads/questions/<?= htmlspecialchars($q['image']) ?>" 
+                                            alt="Question Image"
+                                            class="question-image">
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -435,20 +479,19 @@ include '../includes/user_header.php';
                         </div>
                     <?php endif; ?>
                 </div>
-                <?php $serial++; endwhile; ?>
+                <?php $serial++; ?>
+            <?php endwhile; ?>
 
             <div class="submit-card">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                     <div>
                         <h5 class="mb-1">Ready to submit?</h5>
-                        <p class="text-muted mb-0">Make sure you have reviewed your answers before submitting the exam.
-                        </p>
+                        <p class="text-muted mb-0">Make sure you have reviewed your answers before submitting the exam.</p>
                     </div>
 
                     <div class="d-flex gap-2 flex-wrap">
                         <a href="dashboard.php" class="btn btn-outline-secondary btn-rounded">Back</a>
-                        <button type="submit" class="btn btn-success btn-rounded px-4" id="submitBtn">Submit
-                            Exam</button>
+                        <button type="submit" class="btn btn-success btn-rounded px-4" id="submitBtn">Submit Exam</button>
                     </div>
                 </div>
             </div>
@@ -493,8 +536,6 @@ include '../includes/user_header.php';
             </div>
         </div>
     </div>
-    
-
 </form>
 
 <script>
@@ -538,6 +579,7 @@ include '../includes/user_header.php';
             if (remaining <= 60 && remaining > 0) {
                 timerBox.classList.add('timer-danger');
                 timerBox.classList.remove('timer-warning');
+                timerText.textContent = 'Less than 1 minute remaining';
 
                 if (!oneMinuteWarningShown) {
                     oneMinuteWarningShown = true;
